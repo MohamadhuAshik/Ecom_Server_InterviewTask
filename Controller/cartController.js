@@ -2,9 +2,7 @@ const mongoose = require("mongoose");
 const cartModel = require("../Model/cartModel");
 const productModel = require("../Model/productModel");
 
-/**
- * Helper to calculate cart totals
- */
+
 function calculateCartTotals(cart) {
   let totalAmount = 0;
   let totalItems = 0;
@@ -24,9 +22,7 @@ function calculateCartTotals(cart) {
   };
 }
 
-/**
- * GET user cart
- */
+
 const getCart = async (req, res) => {
   try {
     const userId = req.user?.id || req.user?._id;
@@ -45,7 +41,7 @@ const getCart = async (req, res) => {
       });
     }
 
-    // Filter out items whose product might have been deleted from DB
+
     const validItems = cart.items.filter((item) => item.product !== null);
     if (validItems.length !== cart.items.length) {
       cart.items = validItems;
@@ -70,9 +66,7 @@ const getCart = async (req, res) => {
   }
 };
 
-/**
- * ADD item to cart
- */
+
 const addToCart = async (req, res) => {
   try {
     const userId = req.user?.id || req.user?._id;
@@ -89,7 +83,7 @@ const addToCart = async (req, res) => {
       });
     }
 
-    // Find product in DB
+
     let product = null;
     if (mongoose.Types.ObjectId.isValid(productId)) {
       product = await productModel.findById(productId);
@@ -107,7 +101,7 @@ const addToCart = async (req, res) => {
 
     const qtyToAdd = Math.max(1, parseInt(quantity, 10) || 1);
 
-    // Find or create user cart
+
     let cart = await cartModel.findOne({ user: userId });
     if (!cart) {
       cart = new cartModel({
@@ -116,7 +110,7 @@ const addToCart = async (req, res) => {
       });
     }
 
-    // Check if the same product (and color if provided) already exists in cart
+
     const existingIndex = cart.items.findIndex((item) => {
       const matchProduct = item.product.toString() === product._id.toString();
       if (!matchProduct) return false;
@@ -159,9 +153,7 @@ const addToCart = async (req, res) => {
   }
 };
 
-/**
- * UPDATE cart item quantity
- */
+
 const updateCartItemQuantity = async (req, res) => {
   try {
     const userId = req.user?.id || req.user?._id;
@@ -223,9 +215,6 @@ const updateCartItemQuantity = async (req, res) => {
   }
 };
 
-/**
- * REMOVE item from cart
- */
 const removeFromCart = async (req, res) => {
   try {
     const userId = req.user?.id || req.user?._id;
@@ -266,9 +255,7 @@ const removeFromCart = async (req, res) => {
   }
 };
 
-/**
- * CLEAR entire cart
- */
+
 const clearCart = async (req, res) => {
   try {
     const userId = req.user?.id || req.user?._id;

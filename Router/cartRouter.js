@@ -10,7 +10,7 @@ const {
 
 const cartRouter = express.Router();
 
-// Protect all cart routes with authentication middleware
+
 cartRouter.use(authentication);
 
 cartRouter.get("/", getCart);
