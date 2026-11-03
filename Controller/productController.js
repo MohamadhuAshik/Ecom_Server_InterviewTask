@@ -30,11 +30,11 @@ function processUploadedFiles(files) {
 
     // File saved directly by Multer diskStorage
     if (file.filename) {
-      results.push(`/uploads/${file.filename}`);
+      results.push(`/images/${file.filename}`);
       continue;
     }
 
-    // If file came as memory buffer, write to uploadDir so it always outputs a clean file path
+    // If file came as memory buffer, write to uploadDir so it always outputs a clean file path in /images/
     if (file.buffer) {
       try {
         if (!fs.existsSync(uploadDir)) {
@@ -48,7 +48,7 @@ function processUploadedFiles(files) {
         const uniqueName = `${baseName || "product"}_${Date.now()}_${Math.random().toString(36).substring(2, 8)}${rawExt}`;
         const fullPath = path.join(uploadDir, uniqueName);
         fs.writeFileSync(fullPath, file.buffer);
-        results.push(`/uploads/${uniqueName}`);
+        results.push(`/images/${uniqueName}`);
       } catch (err) {
         console.error("Failed to write image to uploadDir:", err.message);
       }

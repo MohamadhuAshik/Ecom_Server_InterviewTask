@@ -14,17 +14,14 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Serve uploaded files statically from local uploads or serverless /tmp/uploads
-const isServerless = Boolean(
-  process.env.VERCEL ||
-  process.env.AWS_LAMBDA_FUNCTION_NAME ||
-  process.env.LAMBDA_TASK_ROOT
-);
-const uploadDir = isServerless
-  ? path.join(require("os").tmpdir(), "uploads")
-  : path.join(__dirname, "uploads");
+// Serve uploaded files statically from local uploads and serverless /tmp/uploads
+const localUploadDir = path.join(__dirname, "uploads");
+const tmpUploadDir = path.join(require("os").tmpdir(), "uploads");
 
-app.use("/uploads", express.static(uploadDir));
+app.use("/images", express.static(localUploadDir));
+app.use("/images", express.static(tmpUploadDir));
+app.use("/uploads", express.static(localUploadDir));
+app.use("/uploads", express.static(tmpUploadDir));
 
 const connectionString =
     process.env.MONGO_URI || process.env.ATLAS_MONGO_URI || "";
