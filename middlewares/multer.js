@@ -12,29 +12,42 @@ const storage = multer.diskStorage({
     cb(null, uploadPath);
   },
   filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    const baseName = path.basename(file.originalname, ext).replace(/\s+/g, "-");
-    const fileName = `${baseName}_${Date.now()}${ext}`;
-    cb(null, fileName);
+    const rawExt = path.extname(file.originalname || "").toLowerCase();
+    const ext = rawExt || ".jpg";
+    const baseName = path
+      .basename(file.originalname || "image", rawExt)
+      .replace(/[^a-zA-Z0-9-_]/g, "_")
+      .slice(0, 50);
+    const uniqueSuffix = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    cb(null, `${baseName || "product"}_${uniqueSuffix}${ext}`);
   },
 });
 
 const fileFilter = (req, file, cb) => {
-  const allowedTypes = /jpeg|jpg|png|webp|gif/;
-  const isExtValid = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-  const isMimeValid = allowedTypes.test(file.mimetype);
+  const allowedExts = /\.(jpeg|jpg|png|webp|gif|svg|avif|jfif|bmp)$/i;
+  const isExtValid = allowedExts.test(path.extname(file.originalname || ""));
+  const isMimeValid =
+    !file.mimetype ||
+    file.mimetype.startsWith("image/") ||
+    file.mimetype === "application/octet-stream";
 
-  if (isExtValid && isMimeValid) {
+  if (isExtValid || isMimeValid) {
     cb(null, true);
   } else {
-    cb(new Error("Only image files (jpeg, jpg, png, webp, gif) are allowed"), false);
+    cb(
+      new Error(`File "${file.originalname}" is not an accepted image format`),
+      false
+    );
   }
 };
 
 const upload = multer({
   storage: storage,
   fileFilter: fileFilter,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB limit
+  limits: {
+    fileSize: 25 * 1024 * 1024, // 25 MB per file
+    files: 50,                  // up to 50 files per request
+  },
 });
 
 module.exports = upload;
