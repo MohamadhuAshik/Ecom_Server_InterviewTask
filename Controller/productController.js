@@ -3,19 +3,14 @@ const fs = require("fs");
 const mongoose = require("mongoose");
 const productModel = require("../Model/productModel");
 
-/**
- * Safely processes uploaded files:
- * 1. If in a serverless environment (Vercel/Lambda where disk is read-only EROFS), converts buffer to Base64 data URI.
- * 2. If in a persistent writable environment (local development), saves file to /uploads/ directory.
- * 3. Gracefully falls back to Base64 if writing to disk throws EROFS.
- */
+
 function processUploadedFiles(files) {
   if (!files) return [];
   const list = Array.isArray(files)
     ? files
     : typeof files === "object"
-    ? Object.values(files).flat()
-    : [files];
+      ? Object.values(files).flat()
+      : [files];
 
   const results = [];
   const uploadDir = path.join(__dirname, "../uploads");
