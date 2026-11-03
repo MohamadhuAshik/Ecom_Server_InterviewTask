@@ -10,7 +10,7 @@ const cartRouter = require("./Router/cartRouter");
 const app = express();
 
 const PORT = process.env.PORT || 4000;
-app.use(cors());
+app.use(cors("*"));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -34,6 +34,22 @@ const dbRun = async () => {
 };
 
 dbRun();
+
+// Health Check Endpoints
+const healthCheckHandler = (req, res) => {
+
+
+    return res.status(200).json({
+        status: "OK",
+        message: "Server and Database are healthy",
+        uptime: Math.floor(process.uptime()),
+        timestamp: new Date().toISOString(),
+
+    });
+};
+
+app.get("/", healthCheckHandler);
+
 
 app.use("/api/v1/users", userRouter);
 app.use("/api/v1/products", productRouter);
