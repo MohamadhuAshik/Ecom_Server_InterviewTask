@@ -1,6 +1,77 @@
+const path = require("path");
+const fs = require("fs");
 const mongoose = require("mongoose");
 const productModel = require("../Model/productModel");
 
+/**
+ * Safely processes uploaded files:
+ * 1. If in a serverless environment (Vercel/Lambda where disk is read-only EROFS), converts buffer to Base64 data URI.
+ * 2. If in a persistent writable environment (local development), saves file to /uploads/ directory.
+ * 3. Gracefully falls back to Base64 if writing to disk throws EROFS.
+ */
+function processUploadedFiles(files) {
+  if (!files) return [];
+  const list = Array.isArray(files)
+    ? files
+    : typeof files === "object"
+    ? Object.values(files).flat()
+    : [files];
+
+  const results = [];
+  const uploadDir = path.join(__dirname, "../uploads");
+  const isServerless = Boolean(
+    process.env.VERCEL ||
+    process.env.AWS_LAMBDA_FUNCTION_NAME ||
+    process.env.LAMBDA_TASK_ROOT ||
+    process.env.NODE_ENV === "production" && !fs.existsSync(uploadDir)
+  );
+
+  for (const file of list) {
+    if (!file) continue;
+
+    // Already a filename on disk
+    if (file.filename) {
+      results.push(`/uploads/${file.filename}`);
+      continue;
+    }
+
+    // In-memory buffer from multer.memoryStorage()
+    if (file.buffer) {
+      const mime = file.mimetype || "image/jpeg";
+      let diskSavedPath = null;
+
+      if (!isServerless) {
+        try {
+          if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+          }
+          const rawExt = path.extname(file.originalname || "").toLowerCase() || ".jpg";
+          const baseName = path
+            .basename(file.originalname || "image", rawExt)
+            .replace(/[^a-zA-Z0-9-_]/g, "_")
+            .slice(0, 40);
+          const uniqueName = `${baseName || "product"}_${Date.now()}_${Math.random().toString(36).substring(2, 8)}${rawExt}`;
+          const fullPath = path.join(uploadDir, uniqueName);
+          fs.writeFileSync(fullPath, file.buffer);
+          diskSavedPath = `/uploads/${uniqueName}`;
+        } catch (err) {
+          // If disk is read-only (EROFS) or unwriteable, fall back to base64
+          console.warn("Disk write unavailable (read-only EROFS), storing image as base64:", err.message);
+          diskSavedPath = null;
+        }
+      }
+
+      if (diskSavedPath) {
+        results.push(diskSavedPath);
+      } else {
+        const base64Str = `data:${mime};base64,${file.buffer.toString("base64")}`;
+        results.push(base64Str);
+      }
+    }
+  }
+
+  return results;
+}
 
 const addProduct = async (req, res) => {
   try {
@@ -19,7 +90,6 @@ const addProduct = async (req, res) => {
       featured,
     } = req.body;
 
-
     if (!name || price === undefined || !category || !description) {
       return res.status(400).json({
         success: false,
@@ -27,24 +97,8 @@ const addProduct = async (req, res) => {
       });
     }
 
-
-    let uploadedImages = [];
-
-    if (req.files) {
-      if (Array.isArray(req.files)) {
-        uploadedImages = req.files.map((file) => `/uploads/${file.filename}`);
-      } else if (typeof req.files === "object") {
-        Object.values(req.files).forEach((fileArr) => {
-          if (Array.isArray(fileArr)) {
-            fileArr.forEach((file) => {
-              uploadedImages.push(`/uploads/${file.filename}`);
-            });
-          }
-        });
-      }
-    } else if (req.file) {
-      uploadedImages.push(`/uploads/${req.file.filename}`);
-    }
+    // Process files from memory or disk safely without EROFS errors
+    let uploadedImages = processUploadedFiles(req.files || (req.file ? [req.file] : []));
 
 
     if (image) {
@@ -368,19 +422,10 @@ const updateProduct = async (req, res) => {
       updatedImages = product.image || [];
     }
 
-    // Newly uploaded files via Multer
-    if (req.files) {
-      if (Array.isArray(req.files)) {
-        req.files.forEach((file) => updatedImages.push(`/uploads/${file.filename}`));
-      } else if (typeof req.files === "object") {
-        Object.values(req.files).forEach((fileArr) => {
-          if (Array.isArray(fileArr)) {
-            fileArr.forEach((file) => updatedImages.push(`/uploads/${file.filename}`));
-          }
-        });
-      }
-    } else if (req.file) {
-      updatedImages.push(`/uploads/${req.file.filename}`);
+    // Newly uploaded files via Multer (memory or disk)
+    const newProcessedFiles = processUploadedFiles(req.files || (req.file ? [req.file] : []));
+    if (newProcessedFiles.length > 0) {
+      updatedImages.push(...newProcessedFiles);
     }
 
     // Additional URL strings
