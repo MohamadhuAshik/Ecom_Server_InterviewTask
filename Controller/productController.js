@@ -1,66 +1,56 @@
 const path = require("path");
 const fs = require("fs");
+const os = require("os");
 const mongoose = require("mongoose");
 const productModel = require("../Model/productModel");
 
-
+/**
+ * Extracts and saves uploaded files as clean "/uploads/filename.ext" URLs
+ */
 function processUploadedFiles(files) {
   if (!files) return [];
   const list = Array.isArray(files)
     ? files
     : typeof files === "object"
-      ? Object.values(files).flat()
-      : [files];
+    ? Object.values(files).flat()
+    : [files];
 
   const results = [];
-  const uploadDir = path.join(__dirname, "../uploads");
   const isServerless = Boolean(
     process.env.VERCEL ||
     process.env.AWS_LAMBDA_FUNCTION_NAME ||
-    process.env.LAMBDA_TASK_ROOT ||
-    process.env.NODE_ENV === "production" && !fs.existsSync(uploadDir)
+    process.env.LAMBDA_TASK_ROOT
   );
+  const uploadDir = isServerless
+    ? path.join(os.tmpdir(), "uploads")
+    : path.join(__dirname, "../uploads");
 
   for (const file of list) {
     if (!file) continue;
 
-    // Already a filename on disk
+    // File saved directly by Multer diskStorage
     if (file.filename) {
       results.push(`/uploads/${file.filename}`);
       continue;
     }
 
-    // In-memory buffer from multer.memoryStorage()
+    // If file came as memory buffer, write to uploadDir so it always outputs a clean file path
     if (file.buffer) {
-      const mime = file.mimetype || "image/jpeg";
-      let diskSavedPath = null;
-
-      if (!isServerless) {
-        try {
-          if (!fs.existsSync(uploadDir)) {
-            fs.mkdirSync(uploadDir, { recursive: true });
-          }
-          const rawExt = path.extname(file.originalname || "").toLowerCase() || ".jpg";
-          const baseName = path
-            .basename(file.originalname || "image", rawExt)
-            .replace(/[^a-zA-Z0-9-_]/g, "_")
-            .slice(0, 40);
-          const uniqueName = `${baseName || "product"}_${Date.now()}_${Math.random().toString(36).substring(2, 8)}${rawExt}`;
-          const fullPath = path.join(uploadDir, uniqueName);
-          fs.writeFileSync(fullPath, file.buffer);
-          diskSavedPath = `/uploads/${uniqueName}`;
-        } catch (err) {
-          // If disk is read-only (EROFS) or unwriteable, fall back to base64
-          console.warn("Disk write unavailable (read-only EROFS), storing image as base64:", err.message);
-          diskSavedPath = null;
+      try {
+        if (!fs.existsSync(uploadDir)) {
+          fs.mkdirSync(uploadDir, { recursive: true });
         }
-      }
-
-      if (diskSavedPath) {
-        results.push(diskSavedPath);
-      } else {
-        const base64Str = `data:${mime};base64,${file.buffer.toString("base64")}`;
-        results.push(base64Str);
+        const rawExt = path.extname(file.originalname || "").toLowerCase() || ".jpg";
+        const baseName = path
+          .basename(file.originalname || "image", rawExt)
+          .replace(/[^a-zA-Z0-9-_]/g, "_")
+          .slice(0, 40);
+        const uniqueName = `${baseName || "product"}_${Date.now()}_${Math.random().toString(36).substring(2, 8)}${rawExt}`;
+        const fullPath = path.join(uploadDir, uniqueName);
+        fs.writeFileSync(fullPath, file.buffer);
+        results.push(`/uploads/${uniqueName}`);
+      } catch (err) {
+        console.error("Failed to write image to uploadDir:", err.message);
       }
     }
   }

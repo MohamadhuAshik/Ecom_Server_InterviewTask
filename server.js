@@ -14,8 +14,17 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Serve uploaded files statically if local uploads exist
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+// Serve uploaded files statically from local uploads or serverless /tmp/uploads
+const isServerless = Boolean(
+  process.env.VERCEL ||
+  process.env.AWS_LAMBDA_FUNCTION_NAME ||
+  process.env.LAMBDA_TASK_ROOT
+);
+const uploadDir = isServerless
+  ? path.join(require("os").tmpdir(), "uploads")
+  : path.join(__dirname, "uploads");
+
+app.use("/uploads", express.static(uploadDir));
 
 const connectionString =
     process.env.MONGO_URI || process.env.ATLAS_MONGO_URI || "";
@@ -63,14 +72,14 @@ const connectDB = async () => {
     }
 };
 
-// Initial connection attempt on boot
+
 connectDB().catch((err) => {
     console.warn("Initial DB connection warning (will retry on incoming request):", err.message);
 });
 
-// Middleware: Ensure MongoDB is connected BEFORE any API route executes
+
 app.use(async (req, res, next) => {
-    // Skip non-API paths and health checks
+
     if (
         req.path === "/" ||
         req.path === "/health" ||
@@ -113,8 +122,7 @@ const healthCheckHandler = (req, res) => {
 };
 
 app.get("/", healthCheckHandler);
-app.get("/health", healthCheckHandler);
-app.get("/api/v1/health", healthCheckHandler);
+
 
 // API Routes
 app.use("/api/v1/users", userRouter);
